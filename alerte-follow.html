@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerte Follow Codec MGS2</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap'); /* Fallback pour d'autres textes si besoin */
+
+        /* Chargement de la police personnalisée */
+        @font-face {
+            font-family: 'Expansiva Bold';
+            src: url('https://raw.githubusercontent.com/NXVL6/mes-fonts-alertes/main/expansiva.bold.otf') format('opentype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Roboto', sans-serif; /* Fallback */
+        }
+
+        #alert-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: none; /* Caché par défaut */
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+
+        #alert-container.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        #codec-visual {
+            position: relative;
+            max-width: 80%; /* Ajuste selon la taille de ton overlay */
+            max-height: 80%;
+            z-index: 1;
+        }
+
+        #codec-visual img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Animation de clignotement léger (opacité variant de 1 à 0.8) pendant 4s */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        #codec-visual.blink {
+            animation: blink 4s ease-in-out infinite;
+        }
+
+        /* Fade out à la fin */
+        #codec-visual.fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; }
+        }
+
+        #follower-name {
+            position: absolute;
+            bottom: 10%; /* Position sous le visuel PNG, ajuste si besoin */
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00FF00; /* Vert typique MGS codec, ajuste si besoin */
+            font-family: 'Expansiva Bold', 'Roboto', sans-serif;
+            font-size: 2.5em; /* Ajuste la taille selon ton PNG */
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 2;
+            opacity: 0;
+            animation: fadeInName 0.5s ease-in forwards;
+        }
+
+        @keyframes fadeInName {
+            to { opacity: 1; }
+        }
+
+        /* Assure que le nom reste visible pendant l'animation */
+        #follower-name.blink {
+            animation: blink 4s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="alert-container">
+        <div id="codec-visual">
+            <img src="https://raw.githubusercontent.com/NXVL6/mes-fonts-alertes/main/Follow%20Alerte%20Twitch.png" alt="New Follow Codec">
+        </div>
+        <div id="follower-name"></div>
+    </div>
+
+    <script>
+        (function() {
+            let audio = null;
+            let timeoutId = null;
+
+            // Fonction pour afficher l'alerte
+            function showAlert(data) {
+                // Arrêter toute alerte précédente
+                hideAlert();
+
+                // Récupérer le nom du follower (format Streamlabs: ${follower})
+                const followerName = data.text || 'Un nouveau follower'; // Fallback si pas de data
+
+                // Mettre à jour le nom
+                document.getElementById('follower-name').textContent = followerName;
+
+                // Afficher le conteneur
+                const container = document.getElementById('alert-container');
+                container.classList.add('show');
+
+                // Lancer l'animation de clignotement sur le visuel et le nom
+                const visual = document.getElementById('codec-visual');
+                const name = document.getElementById('follower-name');
+                visual.classList.add('blink');
+                name.classList.add('blink');
+
+                // Jouer le son
+                audio = new Audio('https://raw.githubusercontent.com/NXVL6/mes-fonts-alertes/main/MGS%20Incoming%20Codec%20Call.mp3');
+                audio.play().catch(e => console.log('Erreur son: ', e)); // Gestion d'erreur pour autoplay
+
+                // Timer pour 4 secondes : arrêter son, enlever clignotement, fade out et cacher
+                timeoutId = setTimeout(() => {
+                    if (audio) {
+                        audio.pause();
+                        audio.currentTime = 0; // Reset pour prochaine utilisation
+                    }
+                    visual.classList.remove('blink');
+                    name.classList.remove('blink');
+                    visual.classList.add('fade-out');
+                    name.style.opacity = '0'; // Fade out du nom aussi
+                    container.classList.remove('show');
+                    setTimeout(() => {
+                        visual.classList.remove('fade-out');
+                    }, 500); // Délai pour que le fade out finisse
+                }, 4000); // 4 secondes
+            }
+
+            // Fonction pour cacher l'alerte (si besoin d'un appel externe)
+            function hideAlert() {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                if (audio) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio = null;
+                }
+                const container = document.getElementById('alert-container');
+                const visual = document.getElementById('codec-visual');
+                const name = document.getElementById('follower-name');
+                container.classList.remove('show');
+                visual.classList.remove('blink', 'fade-out');
+                name.classList.remove('blink');
+                name.style.opacity = '0';
+            }
+
+            // Écouteur pour les événements Streamlabs (adapte si ton setup est différent)
+            window.addEventListener('onEventReceived', function(obj) {
+                if (obj.detail.listener === 'follower') { // Pour les follows
+                    showAlert(obj.detail.event);
+                }
+            });
+
+            // Si test manuel, tu peux appeler showAlert({ text: 'Test Follower' }) dans la console
+        })();
+    </script>
+</body>
+</html>
